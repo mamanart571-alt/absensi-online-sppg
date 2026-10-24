@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--navy:#12304a;--blue:#1769aa;--bg:#f3f6fa;--ink:#1c2935;--muted:#617181;--line:#dce4ec;--white:#fff;--green:#147d53;--red:#b42318}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Arial,sans-serif}
+    header{background:var(--navy);color:#fff;padding:18px max(18px,calc((100% - 1080px)/2));display:flex;justify-content:space-between;align-items:center;gap:12px}
+    header strong{font-size:19px}main{max-width:1080px;margin:24px auto;padding:0 16px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 3px 12px #12304a0b}
+    h1,h2,h3{margin:0 0 12px}h1{font-size:24px}h2{font-size:19px}p{margin:8px 0;color:var(--muted)}label{display:block;font-weight:700;margin:12px 0 5px}
+    input,select,button{font:inherit}input,select{width:100%;padding:11px 12px;border:1px solid #c8d4df;border-radius:8px;background:#fff}
+    button{border:0;border-radius:9px;padding:11px 15px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer}button.secondary{background:#e8eef5;color:var(--navy)}button.danger{background:#b42318}button:disabled{opacity:.5;cursor:not-allowed}
+    .row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:180px}.hidden{display:none!important}.status{padding:11px 13px;border-radius:9px;background:#edf4fb;margin:12px 0;white-space:pre-wrap}.error{background:#fff0ef;color:var(--red)}.success{background:#eaf7f0;color:var(--green)}
+    .pill{display:inline-block;border-radius:99px;background:#e8eef5;padding:4px 9px;font-size:12px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+    video,canvas{width:100%;max-width:360px;border-radius:10px;background:#111;display:block}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f4f7fa}
+    .table-wrap{overflow:auto}small{color:var(--muted)}.top-actions{display:flex;gap:8px;align-items:center}.metric{font-size:26px;font-weight:700;color:var(--navy)}footer{text-align:center;color:var(--muted);padding:24px;font-size:12px}
+    @media(max-width:600px){header{align-items:flex-start;flex-direction:column}main{margin:14px auto}.card{padding:15px}h1{font-size:21px}}
+  </style>
+</head>
+<body>
+<header><div><strong>Absensi Online SPPG</strong><div style="opacity:.8;font-size:12px">Presensi tenaga kerja dan relawan</div></div><div class="top-actions"><span id="who" class="pill hidden"></span><button id="logoutBtn" class="secondary hidden" onclick="doLogout()">Keluar</button></div></header>
+<main>
+  <div id="notice" class="status hidden"></div>
+  <section id="loginCard" class="card" style="max-width:460px;margin:35px auto">
+    <h1>Masuk ke akun</h1><p>Gunakan ID pengguna dan kata sandi yang diberikan administrator.</p>
+    <form onsubmit="doLogin(event)">
+      <label for="loginId">ID pengguna</label><input id="loginId" autocomplete="username" required maxlength="40">
+      <label for="loginPass">Kata sandi</label><input id="loginPass" type="password" autocomplete="current-password" required>
+      <button style="width:100%;margin-top:18px" id="loginButton">Masuk</button>
+    </form>
+  </section>
+  <section id="app" class="hidden">
+    <div class="card"><h1 id="welcome">Absensi</h1><p id="siteInfo"></p><p>Pastikan GPS aktif, berikan izin lokasi dan kamera, serta berada di area kerja.</p></div>
+    <div id="workerPanel" class="grid">
+      <div class="card"><h2>Ambil foto selfie</h2><p>Foto diambil saat tombol absensi ditekan. Pastikan wajah terlihat jelas.</p>
+        <video id="video" autoplay playsinline class="hidden"></video><canvas id="canvas" class="hidden"></canvas>
+        <button id="cameraBtn" class="secondary" onclick="startCamera()">Aktifkan kamera</button>
+        <div style="margin-top:10px"><button id="captureBtn" class="secondary hidden" onclick="capturePhoto()">Ambil foto</button></div>
+        <p id="photoStatus">Foto belum diambil.</p>
+      </div>
+      <div class="card"><h2>Catat kehadiran</h2><p>Lokasi hanya dipakai untuk validasi absensi. Akurasi GPS harus 100 meter atau lebih baik.</p>
+        <button style="width:100%;margin-top:8px" onclick="sendAttendance('IN')">Absen masuk</button>
+        <button class="secondary" style="width:100%;margin-top:10px" onclick="sendAttendance('OUT')">Absen pulang</button>
+        <div id="gpsStatus" class="status">Lokasi belum diperiksa.</div>
+      </div>
+      <div class="card"><h2>Riwayat saya</h2><button class="secondary" onclick="loadMyAttendance()">Muat ulang riwayat</button><div id="myHistory" class="table-wrap" style="margin-top:12px"></div></div>
+    </div>
+    <section id="adminPanel" class="hidden">
+      <div class="grid">
+        <div class="card"><h2>Tambah pengguna</h2><form onsubmit="createUser(event)">
+          <label>ID pengguna</label><input id="newId" required minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]+">
+          <label>Nama lengkap</label><input id="newName" required minlength="2" maxlength="100">
+          <label>Password awal (min. 12 karakter)</label><input id="newPass" type="password" required minlength="12">
+          <label>Peran</label><select id="newRole"><option value="WORKER">Tenaga kerja / relawan</option><option value="ADMIN">Administrator</option></select>
+          <button style="margin-top:14px">Buat akun</button>
+        </form></div>
+        <div class="card"><h2>Lokasi kerja & radius</h2><p>Koordinat bisa diperoleh dari Google Maps. Radius 10–5000 meter.</p>
+          <label>Nama lokasi</label><input id="siteNameInput">
+          <div class="row"><div><label>Latitude</label><input id="siteLat" type="number" step="any" min="-90" max="90"></div><div><label>Longitude</label><input id="siteLng" type="number" step="any" min="-180" max="180"></div></div>
+          <label>Radius (meter)</label><input id="siteRadius" type="number" min="10" max="5000">
+          <button style="margin-top:14px" onclick="saveSite()">Simpan lokasi</button>
+        </div>
+      </div>
+      <div class="card"><h2>Daftar pengguna</h2><button class="secondary" onclick="loadUsers()">Muat ulang</button><div id="usersTable" class="table-wrap" style="margin-top:12px"></div></div>
+      <div class="card"><h2>Laporan absensi</h2><div class="row"><div><label>Tanggal</label><input type="date" id="reportDate"></div><div style="align-self:end"><button onclick="loadReport()">Tampilkan laporan</button> <button class="secondary" onclick="exportReport()">Ekspor CSV</button></div></div><div id="reportTable" class="table-wrap" style="margin-top:12px"></div></div>
+    </section>
+  </section>
+</main>
+<footer>Absensi Online SPPG • Lindungi kata sandi dan jangan bagikan tautan admin kepada pihak yang tidak berwenang.</footer>
+<script>
+let token=null, currentUser=null, appConfig=null, cameraStream=null, photoData=null, photoMime='image/jpeg';
+const $=id=>document.getElementById(id);
+function notice(msg,type=''){const el=$('notice');el.textContent=msg;el.className='status '+(type||'');el.classList.remove('hidden');}
+function clearNotice(){ $('notice').classList.add('hidden'); }
+function busy(button,on){if(button){button.disabled=on;button.dataset.old=button.dataset.old||button.textContent;button.textContent=on?'Memproses…':button.dataset.old;}}
+
+const API_URL = "https://absensi-sppg-api.mamanart571.workers.dev/";
+
+async function callServer(action, ...args) {
+  let response;
+
+  try {
+    response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        action: action,
+        args: args
+      })
+    });
+  } catch (error) {
+    throw new Error(
+      "Tidak dapat terhubung ke server. Periksa koneksi dan konfigurasi Cloudflare."
+    );
+  }
+
+  let result;
+
+  try {
+    result = await response.json();
+  } catch (error) {
+    throw new Error("Server memberikan respons yang tidak valid.");
+  }
+
+  if (!response.ok || !result.ok) {
+    throw new Error(
+      result.error || "Permintaan gagal diproses oleh server."
+    );
+  }
+
+  return result.data;
+}
+
+async function doLogin(e){e.preventDefault();clearNotice();busy($('loginButton'),true);try{const result=await callServer('login',$('loginId').value,$('loginPass').value);token=result.token;currentUser=result.user;appConfig=result.config;showApp();notice('Berhasil masuk.','success');}catch(err){notice(err.message,'error');}finally{busy($('loginButton'),false);}}
+function showApp(){ $('loginCard').classList.add('hidden');$('app').classList.remove('hidden');$('who').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');$('who').textContent=currentUser.name+' • '+currentUser.role;$('welcome').textContent='Halo, '+currentUser.name;$('siteInfo').textContent=appConfig.siteName+' • radius validasi '+appConfig.radiusMeters+' meter';$('siteNameInput').value=appConfig.siteName;$('siteLat').value=appConfig.latitude;$('siteLng').value=appConfig.longitude;$('siteRadius').value=appConfig.radiusMeters;$('reportDate').value=new Date().toLocaleDateString('en-CA');if(currentUser.role==='ADMIN'){$('workerPanel').classList.add('hidden');$('adminPanel').classList.remove('hidden');loadUsers();loadReport();}else{ $('adminPanel').classList.add('hidden');$('workerPanel').classList.remove('hidden');loadMyAttendance();}}
+async function doLogout(){stopCamera();try{if(token)await callServer('logout',token);}catch(e){}token=null;currentUser=null;photoData=null;$('app').classList.add('hidden');$('loginCard').classList.remove('hidden');$('who').classList.add('hidden');$('logoutBtn').classList.add('hidden');$('loginPass').value='';notice('Anda telah keluar.','success');}
+
+async function startCamera() {
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error(
+        'Akses kamera tidak tersedia. Buka aplikasi melalui HTTPS di Chrome.'
+      );
+    }
+
+    const video = $('video');
+
+    // Coba kamera depan terlebih dahulu.
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' },
+        audio: false
+      });
+    } catch (firstError) {
+      // Jika kamera depan tidak tersedia, coba kamera apa saja.
+      if (
+        firstError.name === 'OverconstrainedError' ||
+        firstError.name === 'NotFoundError'
+      ) {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      } else {
+        throw firstError;
+      }
+    }
+
+    video.srcObject = cameraStream;
+    video.muted = true;
+    video.playsInline = true;
+    await video.play();
+
+    video.classList.remove('hidden');
+    $('captureBtn').classList.remove('hidden');
+
+    notice('Kamera aktif. Ambil foto sebelum absensi.', 'success');
+
+  } catch (e) {
+    console.error('Camera error:', e.name, e.message);
+
+    let message = e.message;
+
+    if (e.name === 'NotAllowedError' ||
+        e.name === 'PermissionDeniedError') {
+      message =
+        'Akses kamera ditolak. Periksa izin kamera Chrome dan Windows. ' +
+        'Jika izin sudah aktif, kemungkinan halaman aplikasi memblokir akses kamera.';
+    } else if (e.name === 'NotFoundError') {
+      message = 'Kamera tidak ditemukan. Periksa koneksi kamera laptop.';
+    } else if (e.name === 'NotReadableError') {
+      message = 'Kamera sedang digunakan aplikasi lain atau tidak dapat dibuka.';
+    }
+
+    notice('Kamera gagal dibuka: ' + message, 'error');
+  }
+}
+
+function capturePhoto(){const v=$('video'),c=$('canvas');if(!cameraStream||!v.videoWidth){notice('Kamera belum siap.','error');return;}const max=900,scale=Math.min(1,max/v.videoWidth);c.width=Math.round(v.videoWidth*scale);c.height=Math.round(v.videoHeight*scale);c.getContext('2d').drawImage(v,0,0,c.width,c.height);photoData=c.toDataURL('image/jpeg',0.78);photoMime='image/jpeg';$('photoStatus').textContent='Foto selfie siap digunakan.';$('canvas').classList.remove('hidden');$('video').classList.add('hidden');stopCamera();notice('Foto berhasil diambil.','success');}
+function stopCamera(){if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;}}
+function getLocation(){return new Promise((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('Browser tidak mendukung GPS.'));navigator.geolocation.getCurrentPosition(pos=>resolve({latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy:pos.coords.accuracy}),err=>reject(new Error(({1:'Izin lokasi ditolak.',2:'Lokasi tidak tersedia.',3:'Waktu mencari lokasi habis.'})[err.code]||'Gagal membaca lokasi.')), {enableHighAccuracy:true,timeout:20000,maximumAge:0});});}
+async function sendAttendance(type){clearNotice();if(!photoData){notice('Ambil foto selfie terlebih dahulu.','error');return;}try{$('gpsStatus').textContent='Memeriksa GPS…';const pos=await getLocation();$('gpsStatus').textContent='GPS: '+pos.latitude.toFixed(6)+', '+pos.longitude.toFixed(6)+' (akurasi ±'+Math.round(pos.accuracy)+' m)';const res=await callServer('submitAttendance',token,{type,latitude:pos.latitude,longitude:pos.longitude,accuracy:pos.accuracy,photoData,photoMime,name:currentUser.name});photoData=null;$('photoStatus').textContent='Foto belum diambil.';$('canvas').classList.add('hidden');notice(res.message+' Jarak ke lokasi: '+res.distanceMeters+' m. Waktu: '+res.timestamp,'success');loadMyAttendance();}catch(e){notice(e.message,'error');}}
+async function loadMyAttendance(){try{const rows=await callServer('getMyAttendance',token);$('myHistory').innerHTML=tableHtml(['Tanggal','Masuk','Pulang','Status'],rows.map(r=>[r.date,r.checkIn||'-',r.checkOut||'-',r.status||'-']));}catch(e){notice(e.message,'error');}}
+async function createUser(e){e.preventDefault();try{await callServer('adminCreateUser',token,{userId:$('newId').value,name:$('newName').value,password:$('newPass').value,role:$('newRole').value});$('newId').value='';$('newName').value='';$('newPass').value='';notice('Akun berhasil dibuat.','success');loadUsers();}catch(err){notice(err.message,'error');}}
+async function loadUsers(){try{const users=await callServer('adminListUsers',token);$('usersTable').innerHTML=tableHtml(['ID','Nama','Peran','Status','Aksi'],users.map(u=>[u.userId,u.name,u.role,u.active?'Aktif':'Nonaktif',{html:`<button class="${u.active?'danger':'secondary'}" onclick="toggleUser('${escAttr(u.userId)}',${!u.active})">${u.active?'Nonaktifkan':'Aktifkan'}</button>`}]));}catch(e){notice(e.message,'error');}}
+async function toggleUser(id,active){try{await callServer('adminSetUserActive',token,id,active);notice('Status pengguna diperbarui.','success');loadUsers();}catch(e){notice(e.message,'error');}}
+async function saveSite(){try{appConfig=await callServer('adminUpdateSite',token,{siteName:$('siteNameInput').value,latitude:$('siteLat').value,longitude:$('siteLng').value,radiusMeters:$('siteRadius').value});$('siteInfo').textContent=appConfig.siteName+' • radius validasi '+appConfig.radiusMeters+' meter';notice('Lokasi kerja diperbarui.','success');}catch(e){notice(e.message,'error');}}
+async function loadReport(){try{const rows=await callServer('adminGetAttendance',token,$('reportDate').value);$('reportTable').innerHTML=tableHtml(['ID','Nama','Tanggal','Masuk','Keluar','Status','Koordinat masuk'],rows.map(r=>[r.userId,r.name,r.date,r.checkIn||'-',r.checkOut||'-',r.status||'-',(r.checkInLat&&r.checkInLng)?r.checkInLat+', '+r.checkInLng:'-']));}catch(e){notice(e.message,'error');}}
+async function exportReport(){try{const res=await callServer('adminExportCsv',token,$('reportDate').value);const blob=new Blob(['\ufeff'+res.csv],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=res.filename;a.click();URL.revokeObjectURL(a.href);}catch(e){notice(e.message,'error');}}
+function tableHtml(headers,rows){if(!rows.length)return '<p>Belum ada data.</p>';return '<table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+(c&&typeof c==='object'&&Object.prototype.hasOwnProperty.call(c,'html')?c.html:esc(c==null?'':c))+'</td>').join('')+'</tr>').join('')+'</tbody></table>';}
+// Table action buttons are built only from escaped IDs and fixed boolean arguments.
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function escAttr(s){return String(s).replace(/[^A-Za-z0-9._-]/g,'');}
+</script>
+</body></html>
